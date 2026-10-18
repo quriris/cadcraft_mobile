@@ -14,7 +14,8 @@
 //! - **With no command**, sliding past [`DRAG_START`] presses where the finger landed, so a drag
 //!   makes a selection window or moves a grip, as with a mouse.
 //! - **Two fingers** (pinch, pan) never press: a press held back for the first finger is dropped.
-//! - **Long press** (held still for [`LONG_PRESS_S`]) is a right-click.
+//! - **Long press** (held still for [`LONG_PRESS_S`], no command asking for a point) is a
+//!   right-click.
 //!
 //! Mouse and stylus-with-buttons events (no touch in progress) pass through unchanged.
 
@@ -124,8 +125,10 @@ impl TouchFilter {
         if self.fingers.is_empty() {
             self.gesture = false;
         }
-        // A finger held still: right-click where it is.
+        // A finger held still: right-click where it is (not while aiming: a finger resting on the
+        // point it is about to place must not end the command; ⏎ does that).
         if let Some(h) = self.held
+            && !aiming
             && !self.gesture
             && now - h.at >= LONG_PRESS_S
             && h.pos.distance(h.last) <= DRAG_START
@@ -248,6 +251,14 @@ mod tests {
         let held = frame(&mut f, 0.7, vec![], false);
         assert_eq!(presses(&held), [(PointerButton::Secondary, true, 10.0), (PointerButton::Secondary, false, 10.0)]);
         assert!(presses(&frame(&mut f, 0.8, up(10.0, 1), false)).is_empty());
+    }
+
+    #[test]
+    fn resting_while_aiming_is_not_a_right_click() {
+        let mut f = TouchFilter::default();
+        frame(&mut f, 0.0, down(10.0, 1), true);
+        assert!(presses(&frame(&mut f, 2.0, vec![], true)).is_empty());
+        assert_eq!(presses(&frame(&mut f, 2.1, up(10.0, 1), true)), [(PointerButton::Primary, true, 10.0), (PointerButton::Primary, false, 10.0)]);
     }
 
     #[test]
