@@ -1,0 +1,137 @@
+name: Android APK
+
+# Builds CADCraft Mobile (apps/cadcraft-android) for arm64 Android phones and tablets and publishes
+# the APK as the "android-latest" pre-release. The build log of every run is also pushed to the
+# `ci-logs` branch (latest run only), so it can be read without access to the Actions UI.
+
+on:
+  push:
+    branches: [android]
+    paths-ignore: ["docs/**", "*.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: "0"
+  # cargo-apk pinned to the revision egui's hello_android uses (fixes cargo-subcommand#29).
+  CARGO_APK_GIT: https://github.com/parasyte/cargo-apk.git
+  CARGO_APK_REV: 282639508eeed7d73f2e1eaeea042da2716436d5
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain and Android target
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add aarch64-linux-android
+          rustc --version
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: android-arm64
+          cache-all-crates: true
+
+      - name: Android SDK pieces
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_NDK_LATEST_HOME=$ANDROID_NDK_LATEST_HOME"
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --install "platforms;android-34" "build-tools;35.0.0" > /dev/null
+          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
+
+      - name: Install cargo-apk
+        run: |
+          if ! command -v cargo-apk > /dev/null; then
+            cargo install --git "$CARGO_APK_GIT" --rev "$CARGO_APK_REV" cargo-apk
+          fi
+
+      - name: App icon
+        run: |
+          for d in mdpi:48 hdpi:64 xhdpi:128 xxhdpi:256 xxxhdpi:256; do
+            dpi=${d%%:*}; px=${d##*:}
+            mkdir -p "target/android-res/mipmap-$dpi"
+            cp "assets/app-icon/hicolor/${px}x${px}/apps/ai.storyteller.cadcraft.png" "target/android-res/mipmap-$dpi/ic_launcher.png"
+          done
+
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$KEYSTORE_PASSWORD" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+            echo "CARGO_APK_RELEASE_KEYSTORE=$RUNNER_TEMP/release.p12" >> "$GITHUB_ENV"
+            echo "CARGO_APK_RELEASE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "Signing with the key from repository secrets"
+          else
+            echo "CARGO_APK_RELEASE_KEYSTORE=$GITHUB_WORKSPACE/apps/cadcraft-android/signing/cadcraft-mobile.p12" >> "$GITHUB_ENV"
+            echo "CARGO_APK_RELEASE_KEYSTORE_PASSWORD=cadcraft-mobile" >> "$GITHUB_ENV"
+            echo "Signing with the repository's public key (see docs/android.md)"
+          fi
+
+      - name: Build APK
+        run: |
+          set -o pipefail
+          export CADCRAFT_BUILD_SHA="${GITHUB_SHA::7}"
+          cargo apk build -p cadcraft-android --lib --release 2>&1 | tee build.log
+          ls -la target/release/apk/
+
+      - name: Publish pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK=target/release/apk/cadcraft-mobile.apk
+          cp "$APK" "cadcraft-mobile-arm64.apk"
+          sha256sum cadcraft-mobile-arm64.apk > cadcraft-mobile-arm64.apk.sha256
+          NOTES="CADCraft Mobile for Android (arm64), built from ${GITHUB_SHA::7} on $(date -u +%Y-%m-%dT%H:%MZ)."
+          if gh release view android-latest > /dev/null 2>&1; then
+            gh release delete android-latest --yes --cleanup-tag
+          fi
+          gh release create android-latest cadcraft-mobile-arm64.apk cadcraft-mobile-arm64.apk.sha256 \
+            --prerelease --target "$GITHUB_SHA" --title "CADCraft Mobile (Android, latest build)" --notes "$NOTES"
+
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: cadcraft-mobile-arm64
+          path: target/release/apk/cadcraft-mobile.apk
+          retention-days: 14
+
+      - name: Unit tests (desktop)
+        if: success()
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cargo test -p cadcraft-android 2>&1 | tee test.log
+
+      - name: Push the build log to ci-logs
+        if: always()
+        env:
+          RESULT: ${{ job.status }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/logs"
+          cd "$RUNNER_TEMP/logs"
+          git init -q -b ci-logs
+          for f in build.log test.log; do
+            [ -f "$GITHUB_WORKSPACE/$f" ] || continue
+            # The first errors matter most; keep them, and the end of the log.
+            grep -n -E '^(error|warning: unused)|^\s+--> |^[0-9]+ +\| |error\[' "$GITHUB_WORKSPACE/$f" | head -n 400 > "errors-$f" || true
+            tail -n 1500 "$GITHUB_WORKSPACE/$f" > "$f"
+          done
+          printf 'sha=%s\nrun=%s\nresult=%s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$RESULT" > status.txt
+          git add -A
+          git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" commit -q -m "Android build ${GITHUB_SHA::7}: $RESULT"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ci-logs

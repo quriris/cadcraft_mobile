@@ -232,6 +232,10 @@ fn scan() -> HashMap<String, PathBuf> {
         if let Some(l) = std::env::var_os("LOCALAPPDATA") {
             dirs.push(PathBuf::from(l).join("Microsoft\\Windows\\Fonts"));
         }
+    } else if cfg!(target_os = "android") {
+        // The system's fonts, then the user's own (GOST faces and the like) in the shared
+        // Documents/CADCraft/fonts folder, where a file manager can put them.
+        dirs.extend(["/system/fonts", "/product/fonts", "/storage/emulated/0/Documents/CADCraft/fonts"].map(Into::into));
     } else {
         dirs.extend(["/usr/share/fonts", "/usr/local/share/fonts"].map(Into::into));
         if let Some(h) = std::env::var_os("HOME") {
