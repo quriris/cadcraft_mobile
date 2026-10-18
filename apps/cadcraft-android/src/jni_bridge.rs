@@ -26,11 +26,11 @@ fn with_activity<T>(f: impl FnOnce(&mut JNIEnv, &JObject) -> jni::errors::Result
     #[allow(unsafe_code)]
     let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
     let result = f(&mut *env, &activity);
-    if env.exception_check().unwrap_or(false) {
-        let _ = env.exception_describe();
-        let _ = env.exception_clear();
-    }
-    result.map_err(|e| e.to_string())
+    let exception = if env.exception_check().unwrap_or(false) { Some(take_exception(&mut *env)) } else { None };
+    result.map_err(|e| match exception {
+        Some(text) => format!("{e}: {text}"),
+        None => e.to_string(),
+    })
 }
 
 fn sdk_int(env: &mut JNIEnv) -> jni::errors::Result<i32> {
@@ -55,9 +55,23 @@ pub fn has_storage_access() -> bool {
     })
 }
 
-/// Start the settings screen `action` (for this app's package when `for_package`); false (with
-/// the Java exception cleared) when the system has no such screen.
-fn try_settings(env: &mut JNIEnv, activity: &JObject, action: &str, for_package: bool) -> jni::errors::Result<bool> {
+/// The pending Java exception as text (`android.content.ActivityNotFoundException: …`), cleared.
+fn take_exception(env: &mut JNIEnv) -> String {
+    let Ok(throwable) = env.exception_occurred() else { return "Java exception".into() };
+    let _ = env.exception_clear();
+    let text = env
+        .call_method(&throwable, "toString", "()Ljava/lang/String;", &[])
+        .and_then(|v| v.l())
+        .and_then(|o| env.get_string(&o.into()).map(String::from));
+    if env.exception_check().unwrap_or(false) {
+        let _ = env.exception_clear();
+    }
+    text.unwrap_or_else(|_| "Java exception".into())
+}
+
+/// Start the settings screen `action` (for this app's package when `for_package`). `Err` with the
+/// Java exception's text (cleared) when the system refuses it.
+fn try_settings(env: &mut JNIEnv, activity: &JObject, action: &str, for_package: bool) -> jni::errors::Result<Result<(), String>> {
     let attempt = |env: &mut JNIEnv| -> jni::errors::Result<()> {
         let action = env.new_string(action)?;
         let intent = env.new_object("android/content/Intent", "(Ljava/lang/String;)V", &[JValue::Object(&action)])?;
@@ -68,16 +82,18 @@ fn try_settings(env: &mut JNIEnv, activity: &JObject, action: &str, for_package:
             let uri = env.call_static_method("android/net/Uri", "parse", "(Ljava/lang/String;)Landroid/net/Uri;", &[JValue::Object(&uri_text)])?.l()?;
             env.call_method(&intent, "setData", "(Landroid/net/Uri;)Landroid/content/Intent;", &[JValue::Object(&uri)])?;
         }
+        // FLAG_ACTIVITY_NEW_TASK: some vendor builds refuse settings screens started into the
+        // NativeActivity's own task.
+        env.call_method(&intent, "addFlags", "(I)Landroid/content/Intent;", &[JValue::Int(0x1000_0000)])?;
         env.call_method(activity, "startActivity", "(Landroid/content/Intent;)V", &[JValue::Object(&intent)])?;
         Ok(())
     };
     match attempt(env) {
-        Ok(()) => Ok(true),
+        Ok(()) => Ok(Ok(())),
         Err(jni::errors::Error::JavaException) => {
-            let _ = env.exception_describe();
-            env.exception_clear()?;
-            log::warn!("no settings screen {action}");
-            Ok(false)
+            let text = take_exception(env);
+            log::warn!("settings screen {action}: {text}");
+            Ok(Err(text))
         }
         Err(e) => Err(e),
     }
@@ -87,18 +103,22 @@ fn try_settings(env: &mut JNIEnv, activity: &JObject, action: &str, for_package:
 /// for this app, else the list of apps with that access, else the app's own settings page (some
 /// vendor builds lack the first two); the permission dialog before Android 11.
 pub fn request_storage_access() -> JResult<()> {
-    let opened = with_activity(|env, activity| {
+    let outcome = with_activity(|env, activity| {
         if sdk_int(env)? >= 30 {
+            let mut first_error = None;
             for (action, for_package) in [
                 ("android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION", true),
                 ("android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION", false),
                 ("android.settings.APPLICATION_DETAILS_SETTINGS", true),
             ] {
-                if try_settings(env, activity, action, for_package)? {
-                    return Ok(true);
+                match try_settings(env, activity, action, for_package)? {
+                    Ok(()) => return Ok(Ok(())),
+                    Err(e) => {
+                        first_error.get_or_insert(e);
+                    }
                 }
             }
-            Ok(false)
+            Ok(Err(first_error.unwrap_or_default()))
         } else {
             let names = env.new_object_array(2, "java/lang/String", JObject::null())?;
             let read = env.new_string("android.permission.READ_EXTERNAL_STORAGE")?;
@@ -106,10 +126,10 @@ pub fn request_storage_access() -> JResult<()> {
             env.set_object_array_element(&names, 0, read)?;
             env.set_object_array_element(&names, 1, write)?;
             env.call_method(activity, "requestPermissions", "([Ljava/lang/String;I)V", &[JValue::Object(&names), JValue::Int(1)])?;
-            Ok(true)
+            Ok(Ok(()))
         }
     })?;
-    if opened { Ok(()) } else { Err("no settings screen for file access".into()) }
+    outcome
 }
 
 /// The system language as a BCP 47 tag (`ru-RU`), for the interface's Auto language.
