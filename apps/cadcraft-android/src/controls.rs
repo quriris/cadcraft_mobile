@@ -75,7 +75,7 @@ impl Controls {
     pub fn ui(&mut self, ctx: &egui::Context, ru: bool) -> Request {
         let mut request = Request::None;
         let t = |en: &'static str, r: &'static str| if ru { r } else { en };
-        let size = egui::vec2(64.0, 52.0);
+        let size = egui::vec2(72.0, 52.0);
         egui::Area::new(egui::Id::new("cadcraft_android_controls"))
             .order(egui::Order::Foreground)
             .anchor(egui::Align2::RIGHT_CENTER, egui::vec2(-6.0, 0.0))
@@ -83,7 +83,7 @@ impl Controls {
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
                     let button = |ui: &mut egui::Ui, label: &str, hint: &str, selected: bool| {
-                        ui.add(egui::Button::new(egui::RichText::new(label).size(16.0)).selected(selected).min_size(size)).on_hover_text(hint).clicked()
+                        ui.add(egui::Button::new(egui::RichText::new(label).size(15.0)).selected(selected).min_size(size)).on_hover_text(hint).clicked()
                     };
                     if self.collapsed {
                         if button(ui, "◀", t("Show touch buttons", "Показать кнопки"), false) {
@@ -91,23 +91,23 @@ impl Controls {
                         }
                         return;
                     }
-                    if button(ui, "⏎", t("Enter: finish or repeat a command", "Enter: завершить или повторить команду"), false) {
+                    if button(ui, t("Enter", "Ввод"), t("Enter: finish or repeat a command", "Enter: завершить или повторить команду"), false) {
                         self.send(Key::Enter, Modifiers::NONE);
                     }
                     if button(ui, "Esc", t("Esc: cancel the command", "Esc: отменить команду"), false) {
                         self.send(Key::Escape, Modifiers::NONE);
                     }
-                    if button(ui, "↶", t("Undo", "Отменить действие"), false) {
+                    if button(ui, t("Undo", "Отмена"), t("Undo", "Отменить действие"), false) {
                         self.send(Key::Z, Modifiers { ctrl: true, command: true, ..Modifiers::NONE });
                     }
                     let armed = self.right_click_armed();
                     if button(ui, t("RMB", "ПКМ"), t("The next tap is a right-click", "Следующее касание — правый клик"), armed) {
                         self.right_click = if armed { RightClick::Off } else { RightClick::Armed };
                     }
-                    if button(ui, "⌨", t("On-screen keyboard", "Экранная клавиатура"), false) {
+                    if button(ui, t("Keys", "Клав."), t("On-screen keyboard", "Экранная клавиатура"), false) {
                         request = Request::ShowKeyboard;
                     }
-                    if button(ui, "📂", t("Open a drawing", "Открыть чертёж"), false) {
+                    if button(ui, t("Open", "Откр."), t("Open a drawing", "Открыть чертёж"), false) {
                         request = Request::OpenFile;
                     }
                     if button(ui, "▶", t("Hide these buttons", "Скрыть кнопки"), false) {
