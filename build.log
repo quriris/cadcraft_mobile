@@ -1,0 +1,47 @@
+Using package `cadcraft-android` in `/home/runner/work/cadcraft_mobile/cadcraft_mobile/apps/cadcraft-android/Cargo.toml`
+Warning: Environment variable ANDROID_SDK_ROOT is deprecated (https://developer.android.com/studio/command-line/variables#envar). It will be used until it is unset and replaced by ANDROID_HOME.
+    Updating crates.io index
+     Locking 18 packages to highest Rust 1.95 compatible versions
+      Adding aho-corasick v1.1.5
+      Adding android_log-sys v0.3.2
+      Adding android_logger v0.15.1
+      Adding cesu8 v1.1.0
+      Adding env_filter v0.1.4
+      Adding jni v0.21.1 (available: v0.22.4)
+      Adding regex v1.13.1
+      Adding regex-automata v0.4.18
+      Adding regex-syntax v0.8.11
+      Adding windows-sys v0.45.0
+      Adding windows-targets v0.42.2
+      Adding windows_aarch64_gnullvm v0.42.2
+      Adding windows_aarch64_msvc v0.42.2
+      Adding windows_i686_gnu v0.42.2
+      Adding windows_i686_msvc v0.42.2
+      Adding windows_x86_64_gnu v0.42.2
+      Adding windows_x86_64_gnullvm v0.42.2
+      Adding windows_x86_64_msvc v0.42.2
+   Compiling cadcraft-geom v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/geom)
+   Compiling cadcraft-color v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/color)
+   Compiling cadcraft-fonts v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/fonts)
+   Compiling cadcraft-dxf v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/dxf)
+   Compiling cadcraft-ui-egui v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/ui-egui)
+   Compiling cadcraft-dwg v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/dwg)
+   Compiling cadcraft-doc v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/doc)
+   Compiling cadcraft-render v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/render)
+   Compiling cadcraft-constraints v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/constraints)
+   Compiling cadcraft-engine v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/engine)
+   Compiling cadcraft-io v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/io)
+   Compiling cadcraft-android v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/apps/cadcraft-android)
+    Finished `release` profile [optimized] target(s) in 1m 56s
+ 'lib/arm64-v8a/libcadcraft_android.so'...
+Verifying alignment of /home/runner/work/cadcraft_mobile/cadcraft_mobile/target/release/apk/cadcraft-mobile.apk (4)...
+      49 AndroidManifest.xml (OK - compressed)
+    1248 res/mipmap-hdpi-v4/ic_launcher.png (OK)
+    5708 res/mipmap-mdpi-v4/ic_launcher.png (OK)
+    9184 res/mipmap-xhdpi-v4/ic_launcher.png (OK)
+   17268 res/mipmap-xxhdpi-v4/ic_launcher.png (OK)
+   33464 res/mipmap-xxxhdpi-v4/ic_launcher.png (OK)
+   49636 resources.arsc (OK)
+   50898 lib/arm64-v8a/libcadcraft_android.so (OK - compressed)
+Verification successful
+Signing `/home/runner/work/cadcraft_mobile/cadcraft_mobile/target/release/apk/cadcraft-mobile.apk` with keystore `/home/runner/work/cadcraft_mobile/cadcraft_mobile/apps/cadcraft-android/signing/cadcraft-mobile.p12`

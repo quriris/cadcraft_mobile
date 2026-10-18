@@ -1,0 +1,42 @@
+   Compiling cadcraft-geom v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/geom)
+   Compiling cadcraft-color v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/color)
+   Compiling cadcraft-fonts v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/fonts)
+   Compiling cadcraft-dxf v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/dxf)
+   Compiling cadcraft-ui-egui v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/ui-egui)
+   Compiling cadcraft-dwg v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/dwg)
+   Compiling cadcraft-doc v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/doc)
+   Compiling cadcraft-render v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/render)
+   Compiling cadcraft-constraints v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/constraints)
+   Compiling cadcraft-engine v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/engine)
+   Compiling cadcraft-io v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/crates/io)
+   Compiling cadcraft-android v0.9.0 (/home/runner/work/cadcraft_mobile/cadcraft_mobile/apps/cadcraft-android)
+    Finished `test` profile [optimized + debuginfo] target(s) in 1m 51s
+     Running unittests src/lib.rs (target/debug/deps/cadcraft_android-fb4bfea4b132caf9)
+
+running 17 tests
+test browser::tests::a_missing_folder_is_an_error_not_a_panic ... ok
+test browser::tests::drawings_are_recognised_by_extension ... ok
+test browser::tests::sizes_read_like_a_file_manager ... ok
+test controls::tests::queued_keys_are_pressed_and_released_once ... ok
+test controls::tests::an_armed_right_click_turns_one_tap_secondary ... ok
+test controls::tests::back_is_escape ... ok
+test paths::tests::saved_names_are_safe_file_names ... ok
+test paths::tests::the_app_folder_is_always_offered ... ok
+test touch::tests::a_long_press_is_a_right_click_and_its_lift_is_silent ... ok
+test touch::tests::a_tap_clicks_and_keeps_its_position_for_a_frame ... ok
+test browser::tests::folders_come_first_and_other_files_are_hidden ... ok
+test touch::tests::a_tap_within_one_frame_still_clicks ... ok
+test touch::tests::mouse_clicks_pass_through ... ok
+test touch::tests::with_no_command_a_slide_is_a_drag_from_where_it_landed ... ok
+test touch::tests::resting_while_aiming_is_not_a_right_click ... ok
+test touch::tests::two_fingers_never_press ... ok
+test touch::tests::while_aiming_the_point_goes_where_the_finger_lifts ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests cadcraft_android
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
