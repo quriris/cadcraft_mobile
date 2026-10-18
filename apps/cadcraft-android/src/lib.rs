@@ -6,8 +6,9 @@
 //!
 //! - **Files** ([`browser`], [`paths`]): OPEN shows an in-app browser of shared storage; saves and
 //!   exports go to `Documents/CADCraft`. Android 11+ asks once for "All files access".
-//! - **Touch** ([`controls`]): buttons for Enter, Esc, undo, right-click and the keyboard; the
-//!   Back button is Esc.
+//! - **Touch** ([`touch`], [`controls`]): taps click, a finger aims while a command asks for a
+//!   point, two fingers pan and pinch, a long press is a right-click; buttons for Enter, Esc,
+//!   undo, right-click and the keyboard; the Back button is Esc.
 //! - **Settings, autosave and logs** live in the app's private storage; logs go to logcat
 //!   (tag `cadcraft`).
 //!
@@ -17,6 +18,7 @@
 pub mod browser;
 pub mod controls;
 pub mod paths;
+pub mod touch;
 
 #[cfg(target_os = "android")]
 mod android;

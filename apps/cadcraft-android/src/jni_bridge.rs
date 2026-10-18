@@ -55,19 +55,50 @@ pub fn has_storage_access() -> bool {
     })
 }
 
-/// Ask for shared-storage access: the system's "All files access" page for this app on
-/// Android 11 and later (the user flips the switch and comes back), the permission dialog before.
-pub fn request_storage_access() -> JResult<()> {
-    with_activity(|env, activity| {
-        if sdk_int(env)? >= 30 {
+/// Start the settings screen `action` (for this app's package when `for_package`); false (with
+/// the Java exception cleared) when the system has no such screen.
+fn try_settings(env: &mut JNIEnv, activity: &JObject, action: &str, for_package: bool) -> jni::errors::Result<bool> {
+    let attempt = |env: &mut JNIEnv| -> jni::errors::Result<()> {
+        let action = env.new_string(action)?;
+        let intent = env.new_object("android/content/Intent", "(Ljava/lang/String;)V", &[JValue::Object(&action)])?;
+        if for_package {
             let package = env.call_method(activity, "getPackageName", "()Ljava/lang/String;", &[])?.l()?;
             let package: String = env.get_string(&package.into())?.into();
-            let action = env.new_string("android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION")?;
-            let intent = env.new_object("android/content/Intent", "(Ljava/lang/String;)V", &[JValue::Object(&action)])?;
             let uri_text = env.new_string(format!("package:{package}"))?;
             let uri = env.call_static_method("android/net/Uri", "parse", "(Ljava/lang/String;)Landroid/net/Uri;", &[JValue::Object(&uri_text)])?.l()?;
             env.call_method(&intent, "setData", "(Landroid/net/Uri;)Landroid/content/Intent;", &[JValue::Object(&uri)])?;
-            env.call_method(activity, "startActivity", "(Landroid/content/Intent;)V", &[JValue::Object(&intent)])?;
+        }
+        env.call_method(activity, "startActivity", "(Landroid/content/Intent;)V", &[JValue::Object(&intent)])?;
+        Ok(())
+    };
+    match attempt(env) {
+        Ok(()) => Ok(true),
+        Err(jni::errors::Error::JavaException) => {
+            let _ = env.exception_describe();
+            env.exception_clear()?;
+            log::warn!("no settings screen {action}");
+            Ok(false)
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// Ask for shared-storage access: on Android 11 and later the system's "All files access" page
+/// for this app, else the list of apps with that access, else the app's own settings page (some
+/// vendor builds lack the first two); the permission dialog before Android 11.
+pub fn request_storage_access() -> JResult<()> {
+    let opened = with_activity(|env, activity| {
+        if sdk_int(env)? >= 30 {
+            for (action, for_package) in [
+                ("android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION", true),
+                ("android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION", false),
+                ("android.settings.APPLICATION_DETAILS_SETTINGS", true),
+            ] {
+                if try_settings(env, activity, action, for_package)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
         } else {
             let names = env.new_object_array(2, "java/lang/String", JObject::null())?;
             let read = env.new_string("android.permission.READ_EXTERNAL_STORAGE")?;
@@ -75,9 +106,10 @@ pub fn request_storage_access() -> JResult<()> {
             env.set_object_array_element(&names, 0, read)?;
             env.set_object_array_element(&names, 1, write)?;
             env.call_method(activity, "requestPermissions", "([Ljava/lang/String;I)V", &[JValue::Object(&names), JValue::Int(1)])?;
+            Ok(true)
         }
-        Ok(())
-    })
+    })?;
+    if opened { Ok(()) } else { Err("no settings screen for file access".into()) }
 }
 
 /// The system language as a BCP 47 tag (`ru-RU`), for the interface's Auto language.

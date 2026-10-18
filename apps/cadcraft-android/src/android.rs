@@ -10,6 +10,7 @@ use winit::platform::android::activity::AndroidApp;
 
 use crate::browser::{self, Browser, Text};
 use crate::controls::{Controls, Request};
+use crate::touch::TouchFilter;
 use crate::{jni_bridge, paths};
 
 /// Stencil bits of the window's render pass, as on the desktop: clipped layout viewports.
@@ -22,6 +23,7 @@ struct Shell {
     cad: CadApp,
     browser: Rc<RefCell<Browser>>,
     controls: Controls,
+    touch: TouchFilter,
     app: AndroidApp,
     root: PathBuf,
     access: bool,
@@ -31,6 +33,21 @@ struct Shell {
 impl Shell {
     fn ru(&self) -> bool {
         self.cad.language().starts_with("ru")
+    }
+
+    /// Two fingers sliding over the drawing move it (pinching zooms in the canvas itself).
+    fn pan_with_two_fingers(&mut self, ctx: &egui::Context) {
+        let Some(touch) = ctx.input(|i| i.multi_touch()) else { return };
+        let Some(xf) = self.cad.canvas.xf else { return };
+        let d = touch.translation_delta;
+        if touch.num_touches < 2 || d == egui::Vec2::ZERO || !xf.rect.contains(touch.start_pos) || xf.scale <= 0.0 {
+            return;
+        }
+        if let Ok(st) = self.cad.session.state_mut() {
+            let v = st.view();
+            let shift = cadcraft_geom::Vec2::new(f64::from(d.x) / xf.scale, -f64::from(d.y) / xf.scale);
+            st.set_view_quiet(cadcraft_engine::View { center: v.center - shift, height: v.height });
+        }
     }
 }
 
@@ -42,6 +59,12 @@ impl eframe::App for Shell {
     }
 
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        let aiming = self.cad.session.prompting();
+        self.touch.rewrite(raw, aiming);
+        if self.touch.waiting() {
+            // A finger held still turns into a right-click without new events: look again soon.
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
         self.controls.rewrite(raw);
         self.cad.raw_input_hook(raw);
         cadcraft_ui_egui::cmdline::capture_tab(ctx, raw);
@@ -50,6 +73,7 @@ impl eframe::App for Shell {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.cad.ui(ui);
         let ctx = ui.ctx().clone();
+        self.pan_with_two_fingers(&ctx);
         let ru = self.ru();
         match self.controls.ui(&ctx, ru) {
             Request::ShowKeyboard => self.app.show_soft_input(true),
@@ -73,9 +97,23 @@ impl eframe::App for Shell {
         match action {
             browser::Action::Open(path) => self.cad.open_path(&path.to_string_lossy()),
             browser::Action::RequestAccess => {
-                if let Err(e) = jni_bridge::request_storage_access() {
-                    self.cad.set_status(format!("Storage access: {e}"));
+                let result = jni_bridge::request_storage_access();
+                if let Err(e) = &result {
+                    log::warn!("storage access request: {e}");
                 }
+                self.browser.borrow_mut().note = Some(match result {
+                    Ok(()) => (if ru {
+                        "Включите «Доступ ко всем файлам» для CADCraft Mobile и вернитесь в приложение."
+                    } else {
+                        "Turn on \"All files access\" for CADCraft Mobile, then come back."
+                    })
+                    .to_string(),
+                    Err(e) => if ru {
+                        format!("Не удалось открыть настройки ({e}). Откройте Настройки → Приложения → CADCraft Mobile → Разрешения → Файлы и мультимедиа → «Разрешить управление всеми файлами».")
+                    } else {
+                        format!("Couldn't open the settings ({e}). Open Settings → Apps → CADCraft Mobile → Permissions → Files → Allow management of all files.")
+                    },
+                });
                 // Re-check soon after the user comes back from the settings page.
                 self.access_checked_at = now;
             }
@@ -177,7 +215,7 @@ fn run(app: AndroidApp) -> eframe::Result {
             if cad.session.docs.is_empty() {
                 cad.session.new_drawing(true);
             }
-            Ok(Box::new(Shell { cad, browser, controls: Controls::default(), app, root, access: false, access_checked_at: 0.0 }))
+            Ok(Box::new(Shell { cad, browser, controls: Controls::default(), touch: TouchFilter::default(), app, root, access: false, access_checked_at: 0.0 }))
         }),
     )
 }

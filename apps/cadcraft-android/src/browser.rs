@@ -33,6 +33,8 @@ pub struct Browser {
     pub open: bool,
     pub dir: PathBuf,
     pub show_all: bool,
+    /// A line under the access banner: what to do in the settings page, or why it didn't open.
+    pub note: Option<String>,
     entries: Vec<Entry>,
     error: Option<String>,
     listed: Option<(PathBuf, bool)>,
@@ -40,7 +42,7 @@ pub struct Browser {
 
 impl Browser {
     pub fn new(start: PathBuf) -> Self {
-        Self { open: false, dir: start, show_all: false, entries: Vec::new(), error: None, listed: None }
+        Self { open: false, dir: start, show_all: false, note: None, entries: Vec::new(), error: None, listed: None }
     }
 
     /// Show the browser, re-reading the folder (files may have arrived since).
@@ -156,6 +158,9 @@ pub fn ui(ctx: &egui::Context, b: &mut Browser, places: &[Place], access: bool, 
     if !b.open {
         return Action::None;
     }
+    if access {
+        b.note = None;
+    }
     let mut action = Action::None;
     let screen = ctx.content_rect();
     let width = (screen.width() - 32.0).clamp(280.0, 900.0);
@@ -181,6 +186,9 @@ pub fn ui(ctx: &egui::Context, b: &mut Browser, places: &[Place], access: bool, 
                 ));
                 if ui.add(egui::Button::new(text.t("Allow access", "Разрешить доступ")).min_size(egui::vec2(160.0, 40.0))).clicked() {
                     action = Action::RequestAccess;
+                }
+                if let Some(note) = &b.note {
+                    ui.label(egui::RichText::new(note.as_str()).strong());
                 }
             });
         }
